@@ -1210,5 +1210,368 @@
 					* For each successful RTT (all ACKS), CWND = CWND + 1
 					* Simple implementation: for each ACK, CWND = CWND + 1/CWND
 			* Multiplicative decrease: 
-				* Cut cwnd in half after loss
-				
+	0			* Cut cwnd in half after loss
+
+# Network Layer: Data Plane
+* Internetworking
+	* Cerf & Kahn in 1974
+		* *A protocol for packet network intercommunication*
+		* Foundation for modern internet
+	* **Routers** forward **packets** from source to destination
+		* May cross many separate networks along the way
+	* All packets use a common **internet protocol**
+		* Any underlyind data link protocol
+		* Any higher layer transport protocol
+* Network layer
+	* Transport segment from sending to receiving host
+	* On sending side, encapsulates segments into datagrams
+	* On receiving side, delievers segments to transport layer
+	* Every layer protocols in *every* host, router
+	* Router examines header fields in all IP datagrams passing through it
+	* Two Key network layer functions:
+		* Forwarding: moving packets from routers input to appropriate output
+		* Routing: determine route taken, by packets from source to destination
+* Data plane vs control plane
+	* Data plane:
+		* Local, per-router function
+		* Determines how datagram arriving on router input port is forwarded to router output port
+		* Forwarding function
+	* Control plane
+		* Network wide logic
+		* Determines how datagram is routed among routers along end-end path from source host to destination host
+		* Two control-pane approaches
+			* Traditional routing algorithms: implemented in routers
+			* Software-defined networking: centralised (remote) servers
+		* Per-router control plane
+			* Individual routing algorithm components in each and every router interact in the control plane
+		* Logically centralised control plane (SDN)
+			* A distinct (typically remove) controller interacts with local control agents (CAs)
+	> What service modal for *channel* transporting datagrams for sender to receiver?
+	> No guarantee whatsoever is provided by IP layer in TCP/IP protocol stack. Its *best effort service*
+
+* IP Packet Structure
+	* Version (4 bits)
+		* Indicate the version of IP protocol
+		* Necessary to know what other fields to expect
+		* Typically 4 (IPv4)
+	* Header length (4 bits)
+		* Number of 32 bit words in header
+		* Typically 5 (for a 20 byte IPv4 header)
+		* Can be more when IP options are used
+	* Total length (16 bits)
+		* Number of bytes in the packet
+		* Maximum size is 65,535 bytes (2<sup>16</sup>-1)
+		* ... though underlying links may impose smaller limits
+	* Source IP Address (32 bits)
+	* Destination IP Address (32 bits)
+	* Protocol (8 bits)
+		* Tells end-host how to handle packet
+		* Identifies the higher-level transport protocol
+		* Important for demultiplexing at receiving host
+	* TTL (Time to leave, 8 bits)
+		* Forwarding loops cause packets to cycle for a long time
+			* As these accumulate, eventually consume all capacity
+		* Decremented at each hop, packet discarded if reaches 0
+		* and ... *time exceeded* message is sent to the source
+	* Checksum (Header Corruption, 16 bits)
+		* Particular form of checksum over packet header
+		* If not correct, router discards packets
+			* So it doesnt act on bogus information
+		* Checksum recalculated at every router
+	* Special handling
+		* Types of service or Differentiated Services Code Point (8 bits)
+			* Allow packets to be treated differently based on needs
+			* Has been refined several times
+			* Not widely used
+* IP fragmentation, reassembly
+	* Networks links have MTU (max transfer size) -- largest possible link level frame
+		* Different link types, different MTUs
+	* Large IP datagram divided (*fragmented*) within net
+		* One datagram becomes several datagrams
+		* Reassembled only at final destination
+		* IP header bits used to identify, order related fragments
+* IPv4 Fragmentation procedure
+	* Fragmentation
+		* Router breaks up datagram in size that output link can support
+		* Copies IP header to pieces
+		* Adjust length on pieces
+		* Set offset to indicate position
+		* Set MF (More fragments) flag on pieces except the last
+		* Recompute the checksum
+	* Re-assembly
+		* Receiving host uses identification field with MF and offsets to complete the datagram
+		* Fragmentation of fragments also supported
+* Path MTU discovery procedure
+	* Host
+		* Sends a big packet to test whether all routers in path to the destination can support or not
+		* Set DF (Do not fragment) flag
+	* Routers
+		* Drops the packet if its too large (as DF is set)
+		* Provides feedback to Host with ICMP message telling the maximum supported size
+* IP addressing
+	* IP Address: 32-bit interface for host, router, interface
+	* Interface: connection between host/router and physical link
+		* Routers typically have multiple interfaces
+		* Host typically has one or two interfaces
+	* IP addresses associated with each interface
+	* Networks
+		* IP Address:
+			* Network part: high order bits
+			* Host part: low order bits
+		* Whats a network?
+			* Device interfaces with same network part of IP address
+			* Can physically reach each other without intervening router
+	* Allocated as blocks have geographical significance
+	* Possible to determine the geographical location of an IP address
+* Masking
+	* Mask
+		* Used in conjunction with the network address to indicate how many higher order bits are used for the network part of the address
+			* Bit-wise AND
+		* 223.1.1.0 with mask 255.255.255.0
+	* Broadcast Address
+		* Host part is all 111's
+		* e.g. 223.1.1.255
+	* Network Address
+		* Host part is all 0000's
+		* e.g. 223.1.1.0
+	* Both of these are not assigned to any host
+
+* Subnetting
+	* Dividing the class A, B or C network into more manageable chunks that are suited to your network's size and structure
+	* Subnetting allows 3 levels of hierarchy
+		* net id,  subnetid, hostid,
+	* Original netid remains the same and designates the site
+	* Subnetting remains transparent outside the site 
+	* The process of subnetting simply extends the point where 1's of Mark stop and 0's start
+	* You are sacrificing host ID bits to gain network ID bits
+
+* Classes InterDomain Routing (CIDR)
+	* Network portion of address of arbitrary length
+	* Address format: a.b.c.d/x where x is # of bits in network oprtion of address
+
+* How does a host get IP addresses?
+	* Hard coded by system admin in file
+	* DHCP -- Dynamic Host Configuration Protocol
+		* Dynamically get address from as server
+		* *Plug and play*
+* DHCP
+	* goal: Allow host to dynamically obtain its IP address from network server when it joins network
+	* Can renew its lease on address in use
+	* Allows reuse of addresses (only hold address while connected/on)
+	* Support for mobile users who want to join network
+	* Overview:
+		* Host broadcasts *DHCP discover* msg
+		* DHCP server responds with *DHCP Offer* msg
+		* Host requests IP address: *DHCP request* msg
+		* DHCP server sends address *DHCP ack* msg
+	* More than IP addresses
+		* DHCP can return more than just allocated IP address on subnet
+			* Address of first hop router for client
+			* Name and IP address of DNS server
+			* Network mask (indicating network vs host portion of address)
+	* Use port number 67 on server and 68 on client side
+	* Usually MAC address is used to identify clients
+		* DHCP server cann be confifured with a *registered* list of acceptable MAC addresses
+	* DHCP offer message includes IP address, length of lease, subnet mark, DNS servers, default gateway
+	* DHCP security holes
+		* DoS attack by exhausting pool of IP addresses
+		* Masquerading as DHCP server
+		* Authentication for DHCP -RFC 3118
+
+* Private addresses
+	* Defined in RFC 1918
+		* 10.0.0.0/8 (16,777,216 hosts)
+		* 172.16.0.0/12 (1,048,576 hosts)
+		* 192.168.0.0/16 (65536 hosts)
+	* These addresses cannot be routed
+		* Anyone can use them
+		* Typically used for NAT
+
+* Network Address Translation (NAT)
+	* All datagrams leaving local network have same single source NAT IP address: 138.76.29.7, different port numbers
+	* Datagrams with source or destination in this network have 10.0.0/24 address for source, destination (as usual)
+	* NAT router must:
+		* Outgoing diagrams: *replace* source IP address, port # of every outgoing datagram to NAT IP address, new port # 
+		* Remember in NAT translation table every source IP address, port # to NAT IP address, new port # translation pair
+		* Incoming diatagramsL *replace* NAT IP address, new # in destination fields of every incoming datagram with corresponding source IP address, port # stored in NAT table
+	* Advantages
+		* Local network uses just one IP address as far as outside world is concerned
+			* Range of addresses not needed from ISP: just one IP address for all devices
+				* 16-bit port number field: \~ 65000 simultaneous connections with one WAN-side address
+			* Can change addresses of devices in local network without notifying outside world
+			* Can change ISP without changing addresses of devices in local network
+	* Disadvantages
+		* NAT violates the architectural model of IP
+			* Every IP address uniquely identifies a single node on Internet
+			* Routes should onlt process up to layer 3
+		* NAT changes the internet from connectionless to a kind of connection-oriented network
+		* NAT possibility must taken into account by app designers *e.g. p2p applications*
+	* Practical issues
+		* Nat modifies port # and IP address
+			* Requires recalculation of TCP and IP checksum
+		* Some applications embed IP address or port numbers in their message payloads
+			* DNS, FTP, SIP, H.323
+			* For legacy protocols, NAT must look into these packets and translate the embedded IP addresses/port numbers
+
+* IPv6
+	* Motivation:
+		* 32-bit address space soon to be completely allocated
+		* Header format helps speed processing/forwarding
+		* Header changes to facilitate QoS
+	* Format
+		* Fixed length 40 byte header
+		* No fragmentation allowed
+		* Priority: identify priority among datagrams in flow (traffic class)
+		* Flow label: identify datagrams in same *flow* 
+		* Next header: identify upper layer protocol for data
+		* Checksum: removed entirely ro reduce processing time at each hop
+		* Options: allowed, but outside header, indicated by next header field
+		* IMCPv6: new version of IMCP
+			* Additional message types: *e.g. Packet to big*
+			* Multicast group management functions
+	* Transition from IPv4 to IPv6
+		* Not all routers can be upgraded simultaneously
+			* No *flag days*
+			* How will network operate with mixed IPv4 and IPv6 routers?
+		* Tunneling: IPv6 datagram carried *payload* in IPv4 datagram among IPv4 routers
+
+# Network Layer: Control Plane
+* Network layer functions
+	* Forwarding (Data plane):
+		* Move packets from router's input to appropriate router output
+	* Routing (Control plance):
+		* Determine route taken by packets from source to destination
+	* Two approaches to structuring network control plane
+		* Per-router control (traditional)
+			* Individual routing algorithm components in each and every router interact with each other in control plane to compute forwarding tables
+		* Logically centralized control (software defined networking)
+			* A distinct (typically remote) controller interacts with lcoal control agents (CAs) in routers to compute forwarding tables
+
+* Internet routing
+	* Works at two levels
+	* Each AS runs *intra-domain* routing protocol that establishes routes within its domain
+		* AS -- region of network under a single administrative entity
+		* Link state e.g. Open Shortest Path First (OSPF)
+		* Distance vector e.g. Routing Ingormation Protocol (RIP)
+	* ASes participate in an *inter-domain* routing protocol that establishes routes between domains
+		* Path vector, e.g. Border Gateway Protocol (BGP)
+
+* Routing algorithm classes
+	* Link state (Global)
+		* Routers maintain cost of each link in the network
+		* Connectivity/cost changes flooded to all routers
+		* Converges quickly (less inconsistency, looping, etc)
+		* Limited network sizes
+	* Distance vector (Decentralised)
+		* Router maintain next hop & cost of each destination
+		* Connectivity/cost changes interatively propagage form neighbour to neighbour
+ 		* Require multiple rounds to converge
+		* Scales to large networks
+	* Link state routing
+		* Each note maintains its *local link state*
+		* Each node floods its local link state (LS)
+			* On receiving a *new* LS message, a router forwards the message to all its neighbours other than the one it received the message from
+			* Flooding LSAs
+				* Routers transmit *Link State Advertisement* (LSA) on links
+					* A neighbouring router forwards out all links except incoming
+					* Keep a copy locally; dont forward previously-seen LSAs
+				* Challenges
+					* Packet loss
+					* Out of order arrival
+				* Solutions
+					* Acknowledgements and retransmissions
+					* Sequence numbers
+					* Time-to-leave for each packet
+		* Eventually, each note learns the entire network topology
+			* Can use Dijkstra's compute the shortest path between nodes
+		* Algorithm: Dijkstra's
+			* Net topology, link costs known to all nodes
+				* Accomplished via *link state broadcast*
+				* All nodes have same information
+			* Computes least cost paths from one node to all other nodes
+				* Gives forwarding table for that node
+			* Issues
+				* Scalability
+				* Transient Distruptions
+				* Oscillations
+	* Distance vector routing
+		* Each router knows the link to its neighbors
+		* Each router has provisional *shortest path* to every other router --  its *distance vector (DV)*
+		* Routers exchange this DV with their neighbours
+		* Routers look over the set of options offered by their neighbours and select the best one
+		* Iterative process converges to set of shortest paths 
+		* Algorithm: Bellman Ford's
+			* Issues
+				* Slow convergence of routers converging on incorrect information
+				* Convergence is the time during which all routers come to an agreement about the best paths through the internetwork
+					* Whenever topology changes, there is a period of instability in the network as the routers converge
+				* Reacts rapidly to good news, but leisurely to bad news
+			* Poisoned Reverse Rule
+				* Heuristic to avoid count to infinity
+
+* ICMP: Internet Control Message Protocol
+	* Used by hosts & routers to communicate network level information
+		* Error reporting: Unreachable host, networkm port
+		* Echo request/reply (used by ping)
+	* Works above IP layer
+		* ICMP messages carried in IP datagrams
+	* ICMP messageL type, code plus IP header and first 8 bytes of IP datagram payload causing error
+
+# Data Link Layer
+* Nodes - Hosts and routers
+* Links - Communication channels that connect adjacent nodes along communication path
+	* Wired links
+	* Wireless links
+	* LANs
+* *Data-link layer* has responsibility of transferring datagram from one node to *physically adjacent* node over a link
+* Link layer
+	* Datagram transferred by different link protocols over different links
+	* Each link protocol provides different services
+* Link layer services
+	* Framing, link access
+		* Encapsulate datagrams into frame, adding header, trailer
+		* Channel access if shared medium
+		* *MAC* address used in frame headers to identify source, dest
+			* Different from IP address
+	* Reliable delivery between adjacent nodes
+		* Seldom used on low bit error link
+		* Wireless links: high error rates
+	* Flow control
+		* Pacing between adjacent sending and receiving nodes
+	* Error detection
+		* Errors caused by signal attenuation, noise
+		* Receiver detects presense of errors
+			* Singal sender for retransmission or drops frame
+	* Error correction
+		* Receiver identifies and corrects bit errors without resorting to retransmission
+	* Half-duplex and full duplex
+		* With half duplex, nodes at both ends of link can transmit, but not at same time
+
+* Where is the link layer implemented?
+	* In each and every host
+	* Link layer implemented in *Adaptor* or on a chip
+	* Attaches into host's system buses
+	* Combination of hardware, software, firmware
+
+	* Adaptors communicating
+		* Sending side:
+			* Encapsulates datagram in frame
+			* Adds error checking bits, rdt, flow control, etc
+		* Receiving side
+			* Looks for errors, rdt, flow control, etc
+			* Extracts datagram, passes to upper layer at receiving side
+
+* Framing
+	* Physical layer talks in terms of bits
+	* Framing used to identify frames within sequence of bits
+		* Delimit the start and end of the frame
+	* Ethernet framing
+		* Timing/Physical layer
+	* Framing in Ethernet
+		* Start of frame is recognized by 
+			* Preamble: Seven bytes with pattern 10101010
+			* Start of Frame Delimiter (SFD): 10101011
+		* Inter Frame Gap is 12 bytes (96 bits) of idle state
+
+
+		
